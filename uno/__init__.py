@@ -1,5 +1,5 @@
 import socket
-
+import MCLikeCommandParser
 from h import *
 
 using_port = []
@@ -20,13 +20,31 @@ def start_one_match() -> int:
             break
     if not port:
         return -1
+    server = MatchServerInstance(port)
+    return port
+
+class GameMessage:
+    def __init__(self):
+        pass
 
 class MatchServerInstance:
     def __init__(self, port:int) -> None:
         self.port = port
         self.ws = websockets.Server(self.request_handler)
-    async def request_handler(self, ws) -> None:
-        ...
+        self.match = Match()
+    @staticmethod
+    async def request_handler(conn:websockets.legacy.server.WebSocketServerProtocol) -> None:
+        while True:
+            msg = await conn.recv(decode=True)
+            print(msg)
+    def message_action_business_bindings(self) -> dict:
+        ans = {
+            self.match
+        }
+        return ans
+    async def message_action_analyse(self, msg:str) -> None:
+        parser = MCLikeCommandParser(msg)
+
 
 class Match:
     def __init__(self) -> None:
@@ -57,13 +75,40 @@ class Match:
     
 
 class Player:
-    players = []
     def __init__(self, qqid:int) -> None:
         self.qq = qqid
         self.hand = InHandCards()
-        Player.players += [self]
     def is_system(self) -> bool:
         return self.qq == 37
+
+class PlayerConnectionPool:
+    def __init__(self) -> None:
+        self.players:defaultdict[Player, websockets.legacy.server.WebSocketServerProtocol] = defaultdict(None)
+    def get_ws_by_player(self, player:Player) -> websockets.legacy.server.WebSocketServerProtocol|None:
+        return self.players[player]
+    def leave(self, player:Player) -> None:
+        del self.players[player]
+    def find_player_by_ws_strict(self, ws:websockets.legacy.server.WebSocketServerProtocol) -> Player|None:  # 比地址
+        """
+        按传入 WebSocket 对象的地址查找玩家对象
+        """
+        for kpl, vws in self.players.items():
+            if vws is ws:
+                return kpl
+        return None
+    def get_player_by_ws_strict(self, ws:websockets.legacy.server.WebSocketServerProtocol) -> Player|None:  # 别名
+        """
+        按传入 WebSocket 对象的地址查找玩家对象
+        """
+        return self.get_player_by_ws_strict(ws)
+    def out(self, player:Player) -> None:
+        self.leave(player)
+    def get_player_list(self) -> list[Player]:
+        ans = []
+        for p in self.players:
+            if p:
+                ans += [p]
+        return ans
 
 class InHandCards:
     def __init__(self):
@@ -88,8 +133,43 @@ class InHandCards:
 class GlobalCardPool(InHandCards):
     def __init__(self):
         super().__init__()
-        self.cards = gen_all()
+        self.cards = gen_shuffled()
         self.force_refresh_cnt()
+    def get_top_7(self) -> list[BaseCard]|None:
+        return self.get_top_n(7)
+    def get_top_n(self, n:int) -> list[BaseCard]|None:
+        if self.cnt >= n >= 1:
+            self.cnt -= n
+            ans = self.cards[:n]
+            self.cards = self.cards[n:]
+            return ans
+        return None
+    def get_random(self) -> BaseCard|None:
+        if self.cnt >= 1:
+            self.cnt -= 1
+            return random.choice(self.cards)
+        return None
+    def insert_random(self, card:BaseCard) -> bool:
+        if card not in self.cards and self.cnt <= 162 - 1:
+            position = random.randint(0, self.cnt)
+            self.cards.insert(position, card)
+            self.cnt += 1
+            return True
+        return False
+    def merge_bottom(self, cards:list[BaseCard]) -> bool:
+        if not len(set(self.cards[:] + cards)) and self.cnt + len(cards) <= 162:
+            self.cards += cards
+            self.cnt += len(cards)
+            return True
+        return False
+    def reset(self) -> None:
+        self.cards = gen_shuffled()
+        self.force_refresh_cnt()
+    def shuffle(self) -> None:
+        random.shuffle(self.cards)
+    def shuffled(self) -> list[BaseCard]|None:
+        self.shuffle()
+        return self.cards
 
 class Action:
     class const:
