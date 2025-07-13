@@ -7,12 +7,12 @@ using_port = []
 def is_port_available(port:int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _sock:
         try:
-            _sock.bind(('localhost', _sock))
+            _sock.bind(('localhost', port))
         except Exception:
             return False
     return True
 
-def start_one_match() -> int:
+async def start_one_match() -> int:
     port = 0
     for i in range(5110, 5510 + 1):
         if is_port_available(i):
@@ -21,6 +21,7 @@ def start_one_match() -> int:
     if not port:
         return -1
     server = MatchServerInstance(port)
+    asyncio.create_task(server.quick_start())
     return port
 
 class GameMessage:
@@ -41,14 +42,23 @@ class MatchServerInstance:
         ans = {
             self.match
         }
+        ...
         return ans
     async def message_action_analyse(self, msg:str) -> None:
         parser = MCLikeCommandParser(msg)
-
+        ...
+    async def quick_start(self) -> None:
+        ...
+    def add_player(self, qqid:int, ws:websockets.legacy.server.WebSocketServerProtocol) -> bool:
+        self.match.player_connection_pool.quick_join(qqid, ws)
+    def start_game(self) -> None:
+        self.match
+        ...
 
 class Match:
     def __init__(self) -> None:
         self.global_card_pool = GlobalCardPool()
+        self.player_connection_pool = PlayerConnectionPool()
         self.global_last = self.global_initial_action()
         self.global_action_history:list[Action] = []
         self.is_stacking = False
@@ -84,8 +94,21 @@ class Player:
 class PlayerConnectionPool:
     def __init__(self) -> None:
         self.players:defaultdict[Player, websockets.legacy.server.WebSocketServerProtocol] = defaultdict(None)
+        self.cnt = 0
     def get_ws_by_player(self, player:Player) -> websockets.legacy.server.WebSocketServerProtocol|None:
         return self.players[player]
+    def join(self, player:Player, ws:websockets.legacy.server.WebSocketServerProtocol) -> bool:
+        for p in self.players:
+            if p.qq == player.qq:
+                return False
+        self[player] = ws
+        return True
+    def quick_join(self, user:int, ws:websockets.legacy.server.WebSocketServerProtocol) -> bool:
+        for p in self.players:
+            if p.qq == user:
+                return False
+        self.join(Player(user), ws)
+        return True
     def leave(self, player:Player) -> None:
         del self.players[player]
     def find_player_by_ws_strict(self, ws:websockets.legacy.server.WebSocketServerProtocol) -> Player|None:  # 比地址
