@@ -8,9 +8,9 @@ def is_port_available(port:int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _sock:
         try:
             _sock.bind(('localhost', _sock))
-            return False
         except Exception:
-            return True
+            return False
+    return True
 
 def start_one_match() -> int:
     port = 0
