@@ -1,9 +1,8 @@
 import uuid
 import asyncio
 import websockets
-import websockets.legacy
-import websockets.legacy.server
 
+from MCLikeCommandParser import *
 from collections import deque, defaultdict
 
 class ActionQueue(deque):
@@ -34,12 +33,11 @@ class ActionQueue(deque):
         self.append(p)
         del self.actionlst[0]
         self.actionlst += [p]
+        
     def reverse(self) -> None:
         self.actionlst.reverse()
         self.base_actionque.reverse()
         self.reverse()
-    def next(self) -> int:
-        return self.popleft()
 
 class BaseCard:
     class const:
