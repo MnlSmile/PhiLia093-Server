@@ -48,6 +48,7 @@ class MatchServerInstance:
         self.connections += [conn]
         while True:
             msg = await conn.recv(decode=True)
+            await self.a_message_action_analyse(msg)
             print(msg)
     def message_action_business_bindings(self) -> dict:
         ans = {
@@ -127,6 +128,7 @@ class Match:
             c = p.hand.find_card(cardid)
             if is_valid_action(self.global_last.card, c):  # type: ignore
                 act = Action(p, c)
+                p.hand.remove(c)
                 self.add_action(act)
                 cmd = repost(p, c)
                 await self.quick_broadcast(cmd)
@@ -236,7 +238,7 @@ class GlobalCardPool(InHandCards):
         self.cards = gen_shuffled()
         self.uuid_dict = defaultdict(None)
         for c in self.cards:
-            self.uuid_dict[c.uuid] = c
+            self.uuid_dict[c.uuid] = c 
         self.force_refresh_cnt()
     def get_top_7(self) -> list[BaseCard]|None:
         return self.get_top_n(7)
@@ -295,6 +297,9 @@ class Action:
         self.card = card
         self._acted = True
         return True
+    def __str__(self) -> str:
+        ans = f"[{self.player.qq if self.player.qq >= 10000 else '37(SYSTEM)'} -> {self.card.uuid}]"
+        return ans
 
 SYSTEM = system = Player(37)
 
